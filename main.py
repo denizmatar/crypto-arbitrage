@@ -9,6 +9,8 @@
 
 import ccxt
 import json
+import csv
+import time
 from exchanges import *
 
 exchange = ccxt.binance()
@@ -17,7 +19,22 @@ exchange.load_markets()
 ask_prices_dict = {}
 bid_prices_dict = {}
 
+PAIR = "ADA/USDT"
 SLIPPAGE = 0
+CSV_PATH = "/Users/denizmatar/PycharmProjects/crypto-arbitrage/data.csv"
+FIELD_NAMES = ['time', 'pair', 'profit', 'buy_exchange', 'sell_exchange']
+
+def csv_writer(field_names, headers, data):
+
+    with open(CSV_PATH, mode='a') as csv_file:
+        writer = csv.DictWriter(csv_file, fieldnames=field_names, delimiter=',', extrasaction='ignore')
+        if headers:
+            writer.writeheader()
+        writer.writerow(data)
+        print("CSV WRITTEN\n")
+
+def float_formatter(float):
+    return "{:.2f}".format(float)
 
 def arbitrage_opportunity_check(exchanges_list, pair_list=None):
     detected = False
@@ -36,12 +53,15 @@ def arbitrage_opportunity_check(exchanges_list, pair_list=None):
                     'enableRateLimit': True,
                 })
 
-                result = exchange.fetch_ticker("YFI/USDT")
+                result = exchange.fetch_ticker(PAIR)
 
                 ask_prices_dict[ex] = result['ask']
                 bid_prices_dict[ex] = result['bid']
 
-                print(count, ex, "done")
+                t = time.localtime()
+                current_time = time.strftime("%H:%M:%S", t)
+
+                print(current_time, count, ex, "done")
 
                 count += 1
             except Exception as e:
@@ -65,14 +85,27 @@ def arbitrage_opportunity_check(exchanges_list, pair_list=None):
             potential_profit = (best_bid_price / best_ask_price - (1 + (SLIPPAGE * 2))) * 100
 
             if potential_profit > 0:
-                print("POTENTIAL PROFIT OF {}. BUY ON {} AND SELL ON {}\n".format(potential_profit,
-                                                                                best_ask_price_exchange,
-                                                                                best_bid_price_exchange
-                                                                                ))
-                # detected = True
-        else:
-            print("NO POTENTIAL PROFIT\n")
+                t = time.localtime()
+                current_time = time.strftime("%H:%M:%S", t)
+                print(current_time)
 
+                print("{} POTENTIAL PROFIT OF {}%. BUY ON {} AND SELL ON {}".format(current_time,
+                                                                                     float_formatter(potential_profit),
+                                                                                     best_ask_price_exchange,
+                                                                                     best_bid_price_exchange
+                                                                                     ))
+                # detected = True
+                data_dict = {"time": str(current_time),
+                             "pair": PAIR,
+                             "profit": potential_profit,
+                             "buy_exchange": best_ask_price_exchange,
+                             "sell_exchange": best_bid_price_exchange
+                             }
+
+                csv_writer(FIELD_NAMES, headers=False, data=data_dict)
+        else:
+            print("NO POTENTIAL PROFIT")
+# TODO: research websocket and FIX
 
 
 arbitrage_opportunity_check(exchanges_list)
