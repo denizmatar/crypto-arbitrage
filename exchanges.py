@@ -1,0 +1,1 @@
+exchanges_list = ['hitbtc', 'binance', 'bittrex', 'coinex', 'cex', 'huobipro', 'bitmex', 'poloniex', 'gateio', 'exmo']
