@@ -20,7 +20,11 @@ ask_prices_dict = {}
 bid_prices_dict = {}
 
 PAIR = "ADA/USDT"
+
 SLIPPAGE = 0
+MAKER_FEE = 0
+TAKER_FEE = 0
+
 CSV_PATH = "/Users/denizmatar/PycharmProjects/crypto-arbitrage/data.csv"
 FIELD_NAMES = ['time', 'pair', 'profit', 'buy_exchange', 'sell_exchange']
 
@@ -82,7 +86,7 @@ def arbitrage_opportunity_check(exchanges_list, pair_list=None):
 
         if  best_ask_price < best_bid_price:
             #  Change slippage on the top
-            potential_profit = (best_bid_price / best_ask_price - (1 + (SLIPPAGE * 2))) * 100
+            potential_profit = (best_bid_price / best_ask_price - (1 + MAKER_FEE + TAKER_FEE + (SLIPPAGE * 2))) * 100
 
             if potential_profit > 0:
                 t = time.localtime()
