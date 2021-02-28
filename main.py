@@ -19,7 +19,7 @@ exchange.load_markets()
 ask_prices_dict = {}
 bid_prices_dict = {}
 
-PAIR = "DOT/USDT"
+PAIR = "OGN/USDT"
 
 SLIPPAGE = 0.005
 MAKER_FEE = 0.002
@@ -111,9 +111,9 @@ def arbitrage_opportunity_check(exchanges_list, pair_list=None):
 
                 csv_writer(FIELD_NAMES, headers=False, data=data_dict)
             else:
-                print("NO POTENTIAL PROFIT")
+                print("NO POTENTIAL PROFIT\n")
         else:
-            print("NO POTENTIAL PROFIT")
+            print("NO POTENTIAL PROFIT\n")
 # TODO: research websocket and FIX --> check for potential profit duration by making faster requests. Goal: 3s
 
 
