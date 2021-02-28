@@ -19,7 +19,7 @@ exchange.load_markets()
 ask_prices_dict = {}
 bid_prices_dict = {}
 
-PAIR = "ADA/USDT"
+PAIR = "DOT/USDT"
 
 SLIPPAGE = 0
 MAKER_FEE = 0
