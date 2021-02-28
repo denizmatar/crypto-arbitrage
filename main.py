@@ -21,12 +21,12 @@ bid_prices_dict = {}
 
 PAIR = "DOT/USDT"
 
-SLIPPAGE = 0
-MAKER_FEE = 0
-TAKER_FEE = 0
+SLIPPAGE = 0.005
+MAKER_FEE = 0.002
+TAKER_FEE = 0.002
 
 CSV_PATH = "/Users/denizmatar/PycharmProjects/crypto-arbitrage/data.csv"
-FIELD_NAMES = ['time', 'pair', 'profit', 'buy_exchange', 'sell_exchange']
+FIELD_NAMES = ['time', 'pair', 'profit', 'buy_exchange', 'sell_exchange', 'slippage', 'maker_fee', 'taker_fee']
 
 def csv_writer(field_names, headers, data):
 
@@ -103,10 +103,15 @@ def arbitrage_opportunity_check(exchanges_list, pair_list=None):
                              "pair": PAIR,
                              "profit": potential_profit,
                              "buy_exchange": best_ask_price_exchange,
-                             "sell_exchange": best_bid_price_exchange
+                             "sell_exchange": best_bid_price_exchange,
+                             "slippage": SLIPPAGE,
+                             "maker_fee": MAKER_FEE,
+                             'taker_fee': TAKER_FEE
                              }
 
                 csv_writer(FIELD_NAMES, headers=False, data=data_dict)
+            else:
+                print("NO POTENTIAL PROFIT")
         else:
             print("NO POTENTIAL PROFIT")
 # TODO: research websocket and FIX
