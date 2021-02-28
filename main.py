@@ -114,7 +114,7 @@ def arbitrage_opportunity_check(exchanges_list, pair_list=None):
                 print("NO POTENTIAL PROFIT")
         else:
             print("NO POTENTIAL PROFIT")
-# TODO: research websocket and FIX
+# TODO: research websocket and FIX --> check for potential profit duration by making faster requests. Goal: 3s
 
 
 arbitrage_opportunity_check(exchanges_list)
