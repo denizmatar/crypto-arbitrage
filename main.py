@@ -7,14 +7,15 @@
     #    ask tarafinda al, bid tarafinda sat
 """
 
-import ccxt
-import json
 import csv
 import time
+
+import ccxt
+
 from exchanges import *
 
-exchange = ccxt.binance()
-exchange.load_markets()
+# exchange = ccxt.binance()
+# exchange.load_markets()
 
 ask_prices_dict = {}
 bid_prices_dict = {}
@@ -28,8 +29,8 @@ TAKER_FEE = 0.002
 CSV_PATH = "/Users/denizmatar/PycharmProjects/crypto-arbitrage/data.csv"
 FIELD_NAMES = ['time', 'pair', 'profit', 'buy_exchange', 'sell_exchange', 'slippage', 'maker_fee', 'taker_fee']
 
-def csv_writer(field_names, headers, data):
 
+def csv_writer(field_names, headers, data):
     with open(CSV_PATH, mode='a') as csv_file:
         writer = csv.DictWriter(csv_file, fieldnames=field_names, delimiter=',', extrasaction='ignore')
         if headers:
@@ -37,16 +38,18 @@ def csv_writer(field_names, headers, data):
         writer.writerow(data)
         print("CSV WRITTEN\n")
 
-def float_formatter(float):
-    return "{:.2f}".format(float)
 
-def arbitrage_opportunity_check(exchanges_list, pair_list=None):
+def float_formatter(flt):
+    return "{:.2f}".format(flt)
+
+
+def arbitrage_opportunity_check(list_of_exchanges):
     detected = False
 
     while not detected:
         count = 1
 
-        for ex in exchanges_list:
+        for ex in list_of_exchanges:
             try:
                 exchange_id = ex
                 exchange_class = getattr(ccxt, exchange_id)
@@ -70,11 +73,10 @@ def arbitrage_opportunity_check(exchanges_list, pair_list=None):
                 count += 1
             except Exception as e:
                 print(count, ex, "ERROR:", e)
-
                 count += 1
 
-        print("ASK PRICES:", ask_prices_dict) # dict
-        print("BID PRICES:", bid_prices_dict) # dict
+        print("ASK PRICES:", ask_prices_dict)  # dict
+        print("BID PRICES:", bid_prices_dict)  # dict
 
         best_ask_price = min(list(ask_prices_dict.values()))
         best_ask_price_index = list(ask_prices_dict.values()).index(best_ask_price)
@@ -84,7 +86,7 @@ def arbitrage_opportunity_check(exchanges_list, pair_list=None):
         best_bid_price_index = list(bid_prices_dict.values()).index(best_bid_price)
         best_bid_price_exchange = list(bid_prices_dict.keys())[best_bid_price_index]
 
-        if  best_ask_price < best_bid_price:
+        if best_ask_price < best_bid_price:
             #  Change slippage on the top
             potential_profit = (best_bid_price / best_ask_price - (1 + MAKER_FEE + TAKER_FEE + (SLIPPAGE * 2))) * 100
 
@@ -94,10 +96,10 @@ def arbitrage_opportunity_check(exchanges_list, pair_list=None):
                 print(current_time)
 
                 print("{} POTENTIAL PROFIT OF {}%. BUY ON {} AND SELL ON {}".format(current_time,
-                                                                                     float_formatter(potential_profit),
-                                                                                     best_ask_price_exchange,
-                                                                                     best_bid_price_exchange
-                                                                                     ))
+                                                                                    float_formatter(potential_profit),
+                                                                                    best_ask_price_exchange,
+                                                                                    best_bid_price_exchange
+                                                                                    ))
                 # detected = True
                 data_dict = {"time": str(current_time),
                              "pair": PAIR,
@@ -114,12 +116,9 @@ def arbitrage_opportunity_check(exchanges_list, pair_list=None):
                 print("NO POTENTIAL PROFIT\n")
         else:
             print("NO POTENTIAL PROFIT\n")
+
+
 # TODO: research websocket and FIX --> check for potential profit duration by making faster requests. Goal: 3s
 
 
 arbitrage_opportunity_check(exchanges_list)
-
-
-
-
-
