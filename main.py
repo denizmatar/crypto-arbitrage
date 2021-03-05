@@ -1,26 +1,20 @@
-"""
-# EXCHANGE A        B         C         D         E            F           G
-    # [33245.9, 33185.19, 33192.14, 45998.8, 33145.27, 33184.33038462, 33211.61]  # ask prices
-    # [33141.5, 33158.49, 33085.33, 30000.1, 33134.99, 33087.40818475, 33037.91]  # bid prices
+# -*- coding: utf-8 -*-
 
-    # eger ask pricestaki minimum deger bid pricestaki maximum degerden kucukse:
-    #    ask tarafinda al, bid tarafinda sat
-"""
+import asyncio
+import os
+import sys
+import json
+from pprint import pprint
 
-import csv
-import time
+# root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# sys.path.append(root + '/python')
 
-import ccxt
+import ccxt.async_support as ccxt  # noqa: E402
+import pairs
+import exchanges
 
-from exchanges import *
 
-# exchange = ccxt.binance()
-# exchange.load_markets()
-
-ask_prices_dict = {}
-bid_prices_dict = {}
-
-PAIR = "OGN/USDT"
+EXCHANGE_IDS = exchanges.exchanges_list
 
 SLIPPAGE = 0.005
 MAKER_FEE = 0.002
@@ -42,42 +36,36 @@ def csv_writer(field_names, headers, data):
 def float_formatter(flt):
     return "{:.2f}".format(flt)
 
+async def loop(exchange_id, symbol):
 
-def arbitrage_opportunity_check(list_of_exchanges):
-    detected = False
+    exchange_class = getattr(ccxt, exchange_id)
+    exchange = exchange_class({'enableRateLimit': True})
+    try:
+        # exchange.verbose = True  # uncomment for debugging purposes
+        ticker = await exchange.fetch_ticker(symbol)
+        print(exchange.iso8601(exchange.milliseconds()), 'fetched', symbol, 'ticker from', exchange.name)
 
-    while not detected:
-        count = 1
+        ask_prices_dict[exchange.name] = ticker['ask']
+        bid_prices_dict[exchange.name] = ticker['bid']
+    except Exception as e:
+        print(type(e).__name__, str(e))
+    await exchange.close()
 
-        for ex in list_of_exchanges:
-            try:
-                exchange_id = ex
-                exchange_class = getattr(ccxt, exchange_id)
-                exchange = exchange_class({
-                    'apiKey': 'YOUR_API_KEY',
-                    'secret': 'YOUR_SECRET',
-                    'timeout': 30000,
-                    'enableRateLimit': True,
-                })
+async def run(EXCHANGE_IDS, symbol):
+    coroutines = [loop(exchange_id, symbol) for exchange_id in EXCHANGE_IDS]
+    return await asyncio.gather(*coroutines)
 
-                result = exchange.fetch_ticker(PAIR)
 
-                ask_prices_dict[ex] = result['ask']
-                bid_prices_dict[ex] = result['bid']
-
-                t = time.localtime()
-                current_time = time.strftime("%H:%M:%S", t)
-
-                print(current_time, count, ex, "done")
-
-                count += 1
-            except Exception as e:
-                print(count, ex, "ERROR:", e)
-                count += 1
-
-        print("ASK PRICES:", ask_prices_dict)  # dict
-        print("BID PRICES:", bid_prices_dict)  # dict
-
+# main = run(EXCHANGE_IDS, symbol)
+# results = asyncio.get_event_loop().run_until_complete(main)
+while True:
+    for pair in pairs.pairs:
+        global ask_prices_dict, bid_prices_dict
+        ask_prices_dict = {}
+        bid_prices_dict = {}
+        main = run(EXCHANGE_IDS, pair)
+        results = asyncio.get_event_loop().run_until_complete(main)
+        # print(json.dumps(results, indent=4))
         best_ask_price = min(list(ask_prices_dict.values()))
         best_ask_price_index = list(ask_prices_dict.values()).index(best_ask_price)
         best_ask_price_exchange = list(ask_prices_dict.keys())[best_ask_price_index]
@@ -116,9 +104,3 @@ def arbitrage_opportunity_check(list_of_exchanges):
                 print("NO POTENTIAL PROFIT\n")
         else:
             print("NO POTENTIAL PROFIT\n")
-
-
-# TODO: research websocket and FIX --> check for potential profit duration by making faster requests. Goal: 3s
-
-
-arbitrage_opportunity_check(exchanges_list)
