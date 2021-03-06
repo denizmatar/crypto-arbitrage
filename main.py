@@ -37,9 +37,6 @@ def float_formatter(flt):
     return "{:.2f}".format(flt)
 
 
-# async def per_exchange_per_symbol()
-
-
 async def exchange_loop(exchange, symbol):
     global orderbook
     print(f'Starting the {exchange.id.upper()} exchange loop for {symbol}')
@@ -56,15 +53,11 @@ async def exchange_loop(exchange, symbol):
         except Exception as e:
             print(str(e))
             break
-    # print(ask_prices_dict)
-    # print(bid_prices_dict)
 
 
 
 async def symbol_loop(asyncio_loop, symbol, exchange_ids):
     print(f"Starting the {symbol} symbol loop for {exchange_ids}")
-    # ask_prices_dict = {}
-    # bid_prices_dict = {}
     exchanges = [getattr(ccxt, exchange_id)({
         'enableRateLimit': True,
         'asyncio_loop': asyncio_loop
@@ -72,11 +65,6 @@ async def symbol_loop(asyncio_loop, symbol, exchange_ids):
 
     loops = [exchange_loop(exchange, symbol) for exchange in exchanges]
     await gather(*loops)
-
-    # ask_prices_dict[symbol] = {exchange.id: orderbook['asks'][0][0]}
-    # bid_prices_dict[symbol] = {exchange.id: orderbook['bids'][0][0]}
-    # print(ask_prices_dict)
-    # print(bid_prices_dict)
     await exchange.close()
 
 
