@@ -1,20 +1,7 @@
-# -*- coding: utf-8 -*-
+import time
+import ccxt.async_support as ccxt
 
-import asyncio
-import os
-import sys
-import json
-from pprint import pprint
-
-# root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-# sys.path.append(root + '/python')
-
-import ccxt.async_support as ccxt  # noqa: E402
-import pairs
-import exchanges
-
-
-EXCHANGE_IDS = exchanges.exchanges_list
+from asyncio import gather, get_event_loop
 
 SLIPPAGE = 0.005
 MAKER_FEE = 0.002
@@ -24,83 +11,70 @@ CSV_PATH = "/Users/denizmatar/PycharmProjects/crypto-arbitrage/data.csv"
 FIELD_NAMES = ['time', 'pair', 'profit', 'buy_exchange', 'sell_exchange', 'slippage', 'maker_fee', 'taker_fee']
 
 
-def csv_writer(field_names, headers, data):
-    with open(CSV_PATH, mode='a') as csv_file:
-        writer = csv.DictWriter(csv_file, fieldnames=field_names, delimiter=',', extrasaction='ignore')
-        if headers:
-            writer.writeheader()
-        writer.writerow(data)
-        print("CSV WRITTEN\n")
-
-
 def float_formatter(flt):
     return "{:.2f}".format(flt)
 
-async def loop(exchange_id, symbol):
 
-    exchange_class = getattr(ccxt, exchange_id)
-    exchange = exchange_class({'enableRateLimit': True})
-    try:
-        # exchange.verbose = True  # uncomment for debugging purposes
-        ticker = await exchange.fetch_ticker(symbol)
-        print(exchange.iso8601(exchange.milliseconds()), 'fetched', symbol, 'ticker from', exchange.name)
+# async def per_exchange_per_symbol()
 
-        ask_prices_dict[exchange.name] = ticker['ask']
-        bid_prices_dict[exchange.name] = ticker['bid']
-    except Exception as e:
-        print(type(e).__name__, str(e))
+
+async def exchange_loop(exchange, symbol):
+    global orderbook
+    print(f'Starting the {exchange.id.upper()} exchange loop with {symbol}')
+    # ask_prices_dict = {}
+    # bid_prices_dict = {}
+    while True:
+        try:
+            orderbook = await exchange.fetch_order_book(symbol)
+            print(f"best ask price for {symbol} in {exchange.id} is {orderbook['asks'][0]}")
+            print(f"best bid price for {symbol} in {exchange.id} is {orderbook['bids'][0]}")
+            # ask_prices_dict[symbol] = {exchange.id: orderbook['asks'][0][0]}
+            # bid_prices_dict[symbol] = {exchange.id: orderbook['bids'][0][0]}
+        except Exception as e:
+            print(str(e))
+            break
+    # print(ask_prices_dict)
+    # print(bid_prices_dict)
+
+
+
+async def symbol_loop(asyncio_loop, symbol, exchange_ids):
+    print(f"Starting the {symbol} symbol loop for {exchange_ids}")
+    ask_prices_dict = {}
+    bid_prices_dict = {}
+    exchanges = [getattr(ccxt, exchange_id)({
+        'enableRateLimit': True,
+        'asyncio_loop': asyncio_loop
+    }) for exchange_id in exchange_ids]
+    print(exchanges)
+
+    loops = [exchange_loop(exchange, symbol) for exchange in exchanges]
+    print(loops)
+    await gather(*loops)
+    ask_prices_dict[symbol] = {exchange.id: orderbook['asks'][0][0]}
+    bid_prices_dict[symbol] = {exchange.id: orderbook['bids'][0][0]}
+    print(ask_prices_dict)
+    print(bid_prices_dict)
     await exchange.close()
 
-async def run(EXCHANGE_IDS, symbol):
-    coroutines = [loop(exchange_id, symbol) for exchange_id in EXCHANGE_IDS]
-    return await asyncio.gather(*coroutines)
 
 
-# main = run(EXCHANGE_IDS, symbol)
-# results = asyncio.get_event_loop().run_until_complete(main)
-while True:
-    for pair in pairs.pairs:
-        global ask_prices_dict, bid_prices_dict
-        ask_prices_dict = {}
-        bid_prices_dict = {}
-        main = run(EXCHANGE_IDS, pair)
-        results = asyncio.get_event_loop().run_until_complete(main)
-        # print(json.dumps(results, indent=4))
-        best_ask_price = min(list(ask_prices_dict.values()))
-        best_ask_price_index = list(ask_prices_dict.values()).index(best_ask_price)
-        best_ask_price_exchange = list(ask_prices_dict.keys())[best_ask_price_index]
+async def main(asyncio_loop):
+    exchanges = {
+        'binance': ['BTC/USDT', 'ETH/BTC', 'ETH/USDT'],
+        'kraken': ['BTC/USDT', 'ETH/BTC', 'ETH/USDT'],
+        'bitfinex': ['BTC/USDT', 'ETH/BTC', 'ETH/USDT'],
+    }
 
-        best_bid_price = max(list(bid_prices_dict.values()))
-        best_bid_price_index = list(bid_prices_dict.values()).index(best_bid_price)
-        best_bid_price_exchange = list(bid_prices_dict.keys())[best_bid_price_index]
+    pairs = {
+        'BTC/USDT': ['binance', 'kraken', 'bitfinex'],
+        'ATOM/USDT': ['binance', 'bitfinex'],
+        'ETH/USDT': ['binance', 'kraken', 'bitfinex']
+    }
+    loops = [symbol_loop(asyncio_loop, symbol, exchange_ids) for symbol, exchange_ids in pairs.items()]
+    await gather(*loops)
 
-        if best_ask_price < best_bid_price:
-            #  Change slippage on the top
-            potential_profit = (best_bid_price / best_ask_price - (1 + MAKER_FEE + TAKER_FEE + (SLIPPAGE * 2))) * 100
 
-            if potential_profit > 0:
-                t = time.localtime()
-                current_time = time.strftime("%H:%M:%S", t)
-                print(current_time)
-
-                print("{} POTENTIAL PROFIT OF {}%. BUY ON {} AND SELL ON {}".format(current_time,
-                                                                                    float_formatter(potential_profit),
-                                                                                    best_ask_price_exchange,
-                                                                                    best_bid_price_exchange
-                                                                                    ))
-                # detected = True
-                data_dict = {"time": str(current_time),
-                             "pair": PAIR,
-                             "profit": potential_profit,
-                             "buy_exchange": best_ask_price_exchange,
-                             "sell_exchange": best_bid_price_exchange,
-                             "slippage": SLIPPAGE,
-                             "maker_fee": MAKER_FEE,
-                             'taker_fee': TAKER_FEE
-                             }
-
-                csv_writer(FIELD_NAMES, headers=False, data=data_dict)
-            else:
-                print("NO POTENTIAL PROFIT\n")
-        else:
-            print("NO POTENTIAL PROFIT\n")
+if __name__ == '__main__':
+    asyncio_loop = get_event_loop()
+    asyncio_loop.run_until_complete(main(asyncio_loop))
