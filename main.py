@@ -50,6 +50,8 @@ async def exchange_loop(exchange, symbol):
             bid_prices_dict[symbol].update({exchange.id: orderbook['bids'][0][0]})
             print(ask_prices_dict)
             print(bid_prices_dict)
+            t = time.ctime(time.time())
+            print(t)
         except Exception as e:
             print(str(e))
             break
@@ -86,5 +88,7 @@ async def main(asyncio_loop):
 
 
 if __name__ == '__main__':
+    t = time.ctime(time.time())
+    print(t)
     asyncio_loop = get_event_loop()
     asyncio_loop.run_until_complete(main(asyncio_loop))
