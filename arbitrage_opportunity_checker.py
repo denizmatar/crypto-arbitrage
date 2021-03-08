@@ -11,36 +11,33 @@ TAKER_FEE = 0.002
 CSV_PATH = "/Users/denizmatar/PycharmProjects/crypto-arbitrage/data.csv"
 FIELD_NAMES = ['time', 'pair', 'profit', 'buy_exchange', 'sell_exchange', 'slippage', 'maker_fee', 'taker_fee']
 
-ask_prices_dict = {}
-bid_prices_dict = {}
+prices_dict = {}
+
 
 class ArbitrageOpportunityChecker:
     def __init__(self):
         self.exchanges = [exchange['name'] for exchange in self.fetch_database('exchanges', {}, {'name': 1})]
         self.pairs = [pair['name'] for pair in self.fetch_database('pairs', {}, {'name': 1})]
         self.all_possible_pairs = [f'{x}/{y}' for x in self.pairs for y in self.pairs if x != y]
-        self.dict_constructor(ask_prices_dict)
-        self.dict_constructor(bid_prices_dict)
-
+        self.prices_dict = self.dict_constructor(prices_dict)
 
     async def exchange_loop(self, exchange, symbol):
-        global orderbook
         print(f'Starting the {exchange.id.upper()} exchange loop for {symbol}')
 
         while True:
             try:
                 orderbook = await exchange.fetch_order_book(symbol)
-                print(f"best ask price for {symbol} in {exchange.id} is {orderbook['asks'][0]}")
-                print(f"best bid price for {symbol} in {exchange.id} is {orderbook['bids'][0]}")
-                ask_prices_dict[symbol].update({exchange.id: orderbook['asks'][0]})
-                bid_prices_dict[symbol].update({exchange.id: orderbook['bids'][0]})
-                pprint(ask_prices_dict)
-                pprint(bid_prices_dict)
+                self.prices_dict[symbol]['ask'].update({exchange.id: orderbook['asks'][0]})
+                self.prices_dict[symbol]['bid'].update({exchange.id: orderbook['bids'][0]})
+                print(f"prices for {exchange.id} for {symbol} added successfully.")
+                # pprint(self.prices_dict)
                 t = time.ctime(time.time())
                 print(t)
             except Exception as e:
                 print(str(e))
                 break
+            finally:
+                await exchange.close()  # peki bu burda mi olmali??
 
     async def symbol_loop(self, asyncio_loop, symbol, exchange_ids):
         print(f"Starting the {symbol} symbol loop for {exchange_ids}")
@@ -51,7 +48,6 @@ class ArbitrageOpportunityChecker:
 
         loops = [self.exchange_loop(exchange, symbol) for exchange in exchanges]
         await gather(*loops)
-        # await exchange.close()
 
     async def main(self, asyncio_loop):
         loops = [self.symbol_loop(asyncio_loop, pair, self.exchanges) for pair in self.all_possible_pairs]
@@ -74,8 +70,8 @@ class ArbitrageOpportunityChecker:
     def dict_constructor(self, dictionary):
         exchanges_dict = {exchange: None for exchange in self.exchanges}
         for pair in self.all_possible_pairs:
-            dictionary[pair] = exchanges_dict
-            dictionary[pair] = exchanges_dict
+            dictionary[pair] = {'ask': {}, 'bid': {}}
+        return dictionary
 
     def run(self):
         t = time.ctime(time.time())
