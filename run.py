@@ -1,4 +1,4 @@
-from arbitrage_opportunity_checker import *
+from arbitrage_opportunity_checker import ArbitrageOpportunityChecker
 
 
 checker = ArbitrageOpportunityChecker()
