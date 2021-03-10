@@ -3,7 +3,6 @@ import ccxt.async_support as ccxt
 import csv
 
 from asyncio import gather, get_event_loop
-from pprint import pprint
 
 SLIPPAGE = 0#0.005
 MAKER_FEE = 0#0.002
@@ -20,9 +19,10 @@ class ExchangePairs:
                  'bittrex', 'poloniex', 'okcoin', 'gateio', 'cex', 'exmo', 'bitmax']
 
     all_exchanges_symbols_dictionary = {}
+    all_symbols_list = set()
 
     def __init__(self):
-        self.all_exchanges_symbols_dictionary = self.run_main()
+        self.all_exchanges_symbols_dictionary, self.all_symbols_list = self.run_main()
 
     async def exchange_symbols_looper(self, exchange_id, asyncio_loop):
         exchange_class = getattr(ccxt, exchange_id)
@@ -34,6 +34,7 @@ class ExchangePairs:
         await exchange.load_markets()
         await exchange.close()
         self.all_exchanges_symbols_dictionary[exchange.id] = exchange.symbols
+        self.all_symbols_list.update(exchange.symbols)
 
     async def main_func(self, asyncio_loop):
         print("Loading all exchange symbols...")
@@ -43,13 +44,12 @@ class ExchangePairs:
     def run_main(self):
         asyncio_loop = get_event_loop()
         asyncio_loop.run_until_complete(self.main_func(asyncio_loop))
-        return self.all_exchanges_symbols_dictionary
+        return self.all_exchanges_symbols_dictionary, self.all_symbols_list
 
 class ArbitrageOpportunityChecker(ExchangePairs):
     def __init__(self):
         super().__init__()
         self.exchanges = [exchange['name'] for exchange in self.fetch_database('exchanges', {}, {'name': 1})]
-        print(self.exchanges)
         self.coins = [coin['name'] for coin in self.fetch_database('coins', {}, {'name': 1})]
         self.all_possible_pairs = [f'{x}/{y}' for x in self.coins for y in self.coins if x != y]
         self.prices_dict = self.dict_constructor(prices_dict)
@@ -80,6 +80,7 @@ class ArbitrageOpportunityChecker(ExchangePairs):
                 print(f"Starting the {symbol} symbol loop for {exchange_id.upper()}")
                 exchanges = [getattr(ccxt, exchange_id)({
                     # binance'e her bir pair icin request atinca too many request erroru veriyor. Limit -> 1200/1m
+                    # ayni error poloniex icin de geldi...
                     'enableRateLimit': True,
                     'asyncio_loop': asyncio_loop
                 }) for exchange_id in exchange_ids]
@@ -91,7 +92,15 @@ class ArbitrageOpportunityChecker(ExchangePairs):
         loops = [self.symbol_loop(asyncio_loop, pair, self.exchanges) for pair in self.all_possible_pairs]
         await gather(*loops)
 
-    def fetch_database(self, collection, query, fields=None):
+    def dict_constructor(self, dictionary):
+        exchanges_dict = {exchange: None for exchange in self.exchanges}
+        for pair in self.all_possible_pairs:
+            if pair in self.all_symbols_list:
+                dictionary[pair] = {'ask': {}, 'bid': {}}
+        return dictionary
+
+    @staticmethod
+    def fetch_database(collection, query, fields=None):
         from pymongo import MongoClient
 
         print(f"Fetching available {collection} from DB...")
@@ -107,16 +116,8 @@ class ArbitrageOpportunityChecker(ExchangePairs):
 
         return result
 
-    def fetch_exchange_symbols(self):
-        pass
-
-    def dict_constructor(self, dictionary):
-        exchanges_dict = {exchange: None for exchange in self.exchanges}
-        for pair in self.all_possible_pairs:
-            dictionary[pair] = {'ask': {}, 'bid': {}}
-        return dictionary
-
-    def csv_writer(self, field_names, headers, data):
+    @staticmethod
+    def csv_writer(field_names, headers, data):
         with open(CSV_PATH, mode='a') as csv_file:
             writer = csv.DictWriter(csv_file, fieldnames=field_names, delimiter=',', extrasaction='ignore')
             if headers:
@@ -124,7 +125,8 @@ class ArbitrageOpportunityChecker(ExchangePairs):
             writer.writerow(data)
             print("CSV WRITTEN\n")
 
-    def float_formatter(self, flt):
+    @staticmethod
+    def float_formatter(flt):
         return "{:.2f}".format(flt)
 
     def opportunity_checker(self, pair):
@@ -142,6 +144,7 @@ class ArbitrageOpportunityChecker(ExchangePairs):
         best_bid_price_exchange = list(bid_prices_dict.keys())[best_bid_price_index]
 
         print(f"best ask price for {pair} is {best_ask_price} and best bid price is {best_bid_price}")
+        print(self.prices_dict)
 
         if best_ask_price < best_bid_price:
             #  Change slippage on the top
