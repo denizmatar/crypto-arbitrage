@@ -15,7 +15,7 @@ prices_dict = {}
 
 
 class ExchangePairs:
-    all_exchanges_list = ['binance', 'huobipro', 'coinbasepro', 'kraken', 'kucoin', 'bitstamp',
+    all_exchanges_list = ['binance', 'huobipro', 'coinbasepro', 'kraken', 'kucoin', 'bitstamp', 'hitbtc', 'coinex',
                  'bittrex', 'poloniex', 'okcoin', 'gateio', 'cex', 'exmo', 'bitmax']
 
     all_exchanges_symbols_dictionary = {}
@@ -53,44 +53,56 @@ class ArbitrageOpportunityChecker(ExchangePairs):
         self.coins = [coin['name'] for coin in self.fetch_database('coins', {}, {'name': 1})]
         self.all_possible_pairs = [f'{x}/{y}' for x in self.coins for y in self.coins if x != y]
         self.prices_dict = self.dict_constructor(prices_dict)
+        self.asyncio_loop = get_event_loop()
+        self.exchange_instances = self.exchange_initializer()
+
+    def exchange_initializer(self):
+        exchanges = [getattr(ccxt, exchange_id)({
+            'enableRateLimit': True,
+            'asyncio_loop': self.asyncio_loop
+        }) for exchange_id in self.exchanges]
+        return exchanges
 
     async def exchange_loop(self, exchange, symbol):
-        print(f'Starting the {exchange.id.upper()} exchange loop for {symbol}')
+        if symbol in self.all_exchanges_symbols_dictionary[exchange.id]:
+            print(f'Starting the {exchange.id.upper()} exchange loop for {symbol}')
 
-        while True:
-            try:
-                orderbook = await exchange.fetch_order_book(symbol)
-                self.prices_dict[symbol]['ask'].update({exchange.id: orderbook['asks'][0]})
-                self.prices_dict[symbol]['bid'].update({exchange.id: orderbook['bids'][0]})
-                # print(f"prices for {exchange.id} for {symbol} added successfully.")
-                self.opportunity_checker(symbol)
-                # pprint(self.prices_dict)
-                # t = time.ctime(time.time())
-                # print(t)
-            except Exception as e:
-                print(str(e))
-                break
-            # finally:
-        await exchange.close()  # peki bu burda mi olmali??
+            while True:
+                try:
+                    orderbook = await exchange.fetch_order_book(symbol)
+                    self.prices_dict[symbol]['ask'].update({exchange.id: orderbook['asks'][0]})
+                    self.prices_dict[symbol]['bid'].update({exchange.id: orderbook['bids'][0]})
+                    # print(f"prices for {exchange.id} for {symbol} added successfully.")
+                    self.opportunity_checker(symbol)
+                    # pprint(self.prices_dict)
+                    # t = time.ctime(time.time())
+                    # print(t)
+                except Exception as e:
+                    print('error', str(e))
+                    break
+                # finally:
+            await exchange.close()  # peki bu burda mi olmali??
 
-    async def symbol_loop(self, asyncio_loop, symbol, exchange_ids):
+    async def symbol_loop(self, symbol):
         # this for loop and if statement filters the unavailable pairs
-        for exchange_id in exchange_ids:
-            if symbol in self.all_exchanges_symbols_dictionary[exchange_id]:
-                print(f"Starting the {symbol} symbol loop for {exchange_id.upper()}")
-                exchanges = [getattr(ccxt, exchange_id)({
-                    # binance'e her bir pair icin request atinca too many request erroru veriyor. Limit -> 1200/1m
-                    # ayni error poloniex icin de geldi...
-                    'enableRateLimit': True,
-                    'asyncio_loop': asyncio_loop
-                }) for exchange_id in exchange_ids]
+        # for exchange_id in exchange_ids:
+        #     if symbol in self.all_exchanges_symbols_dictionary[exchange_id]:
+        #         print(f"Starting the {symbol} symbol loop for {exchange_id.upper()}")
+        #         exchanges = [getattr(ccxt, exchange_id)({
+        #             binance'e her bir pair icin request atinca too many request erroru veriyor. Limit -> 1200/1m
+        #             ayni error poloniex icin de geldi...
+                    # 'enableRateLimit': True,
+                    # 'asyncio_loop': asyncio_loop
+                # }) for exchange_id in exchange_ids]
 
-                loops = [self.exchange_loop(exchange, symbol) for exchange in exchanges]
-                await gather(*loops)
-
-    async def main(self, asyncio_loop):
-        loops = [self.symbol_loop(asyncio_loop, pair, self.exchanges) for pair in self.all_possible_pairs]
+        loops = [self.exchange_loop(exchange, symbol) for exchange in self.exchange_instances]
         await gather(*loops)
+
+    async def main(self):
+        loops = [self.symbol_loop(pair) for pair in self.all_possible_pairs]
+        await gather(*loops)
+
+
 
     def dict_constructor(self, dictionary):
         exchanges_dict = {exchange: None for exchange in self.exchanges}
@@ -143,8 +155,8 @@ class ArbitrageOpportunityChecker(ExchangePairs):
         best_bid_price_amount = list(bid_prices_dict.values())[best_bid_price_index][1]
         best_bid_price_exchange = list(bid_prices_dict.keys())[best_bid_price_index]
 
-        print(f"best ask price for {pair} is {best_ask_price} and best bid price is {best_bid_price}")
-        print(self.prices_dict)
+        print(f"{time.ctime(time.time())} best ask price for {pair} is {best_ask_price} and best bid price is {best_bid_price}")
+        # print(self.prices_dict)
 
         if best_ask_price < best_bid_price:
             #  Change slippage on the top
@@ -173,12 +185,11 @@ class ArbitrageOpportunityChecker(ExchangePairs):
 
                 self.csv_writer(FIELD_NAMES, headers=False, data=data_dict)
             else:
-                print("NO POTENTIAL PROFIT\n")
+                print("NO POTENTIAL PROFIT")
         else:
-            print("NO POTENTIAL PROFIT\n")
+            print("NO POTENTIAL PROFIT")
 
     def run(self):
-        t = time.ctime(time.time())
-        print(t)
-        asyncio_loop = get_event_loop()
-        asyncio_loop.run_until_complete(self.main(asyncio_loop))
+        print(time.ctime(time.time()))
+        self.asyncio_loop.run_until_complete(self.main())
+
