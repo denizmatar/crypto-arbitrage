@@ -1,11 +1,13 @@
 import time
 import ccxt.async_support as ccxt
 import csv
+# import logging
+# logging.basicConfig(level=logging.DEBUG)
 
 from asyncio import gather, get_event_loop, sleep
 from pprint import pprint
 
-SLIPPAGE = 0.005
+SLIPPAGE = 0.01
 MAKER_FEE = 0.002
 TAKER_FEE = 0.002
 
@@ -41,10 +43,11 @@ class ExchangePairs:
         exchange_class = getattr(ccxt, exchange_id)
         exchange = exchange_class({
             'enableRateLimit': True,
-            'asyncio_loop': asyncio_loop
+            'asyncio_loop': asyncio_loop,
         })
 
         await exchange.load_markets()
+        # exchange.verbose = True
         await exchange.close()
         self.all_exchanges_symbols_dictionary[exchange.id] = exchange.symbols
         self.all_symbols_list.update(exchange.symbols)
@@ -62,6 +65,7 @@ class ExchangePairs:
 class ArbitrageOpportunityChecker():
     def __init__(self, all_symbols_list, all_exchanges_symbols_dictionary):
         self.operating_exchange_names = [exchange['name'] for exchange in self.fetch_database('exchanges', {}, {'name': 1})]
+        print(self.operating_exchange_names)
         self.coins = [coin['name'] for coin in self.fetch_database('coins', {}, {'name': 1})]
         self.all_possible_pairs = [f'{x}/{y}' for x in self.coins for y in self.coins if x != y]
         self.prices_dict = self.dict_constructor(prices_dict, all_symbols_list)
@@ -74,45 +78,41 @@ class ArbitrageOpportunityChecker():
 
             while True:
                 try:
-                    orderbook = await exchange.fetch_order_book(symbol)
+                    orderbook = await exchange.fetch_order_book(symbol, limit=None)
                     self.prices_dict[symbol]['ask'].update({exchange.id: orderbook['asks'][0]})
                     self.prices_dict[symbol]['bid'].update({exchange.id: orderbook['bids'][0]})
-                    # print(f"prices for {exchange.id} for {symbol} added successfully.")
                     self.opportunity_checker(symbol)
                     # pprint(self.prices_dict)
                     # t = time.ctime(time.time())
                     # print(t)
-                except ccxt.InvalidNonce as e:
-                    print("invalidnonce", e)
+                except ccxt.AuthenticationError as e:
+                    print(exchange.id, "Authentication Error:", str(e))
+                except ccxt.ArgumentsRequired as e:
+                    print(exchange.id, "Arguments Required:", str(e))
+                except ccxt.BadRequest as e:
+                    print(exchange.id, "Bad Request:", str(e))
+                except ccxt.BadResponse as e:
+                    print(exchange.id, "Bad Response:", str(e))
+                except ccxt.InvalidAddress as e:
+                    print(exchange.id, "Invalid Address:", str(e))
+                except ccxt.NotSupported as e:
+                    print(exchange.id, "Not Supported:", str(e))
                 except ccxt.RequestTimeout as e:
-                    print("requesttimeout", e)
+                    print(exchange.id, "Request Timeout:", str(e))
+                except ccxt.OnMaintenance as e:
+                    print(exchange.id, "Exchange on Maintenance:", str(e))
                 except ccxt.ExchangeNotAvailable as e:
-                    print("exchange not available", e)
-                    await sleep(1)
-                    pass
-
-                    # import requests
-                    # r = requests.get(str(e).split(' ')[1])
-                    # print("fetched the results with requests successfully")
-                    # print(dict(r.text))
-                    # self.prices_dict[symbol]['ask'].update({exchange.id: dict(r.text)["asks"][0]})
-                    # self.prices_dict[symbol]['bid'].update({exchange.id: dict(r.text)["bids"][0]})
-                    # print(f"prices for {exchange.id} for {symbol} added successfully.")
-                    # self.opportunity_checker(symbol)
+                    print(exchange.id, "Exchange Not Available:", str(e))
                 except ccxt.DDoSProtection as e:
-                    print("Rate limit exceeded", e)
+                    print(exchange.id, "Rate limit exceeded:", str(e))
                 except ccxt.NetworkError as e:
                     print(exchange.id, 'fetch_order_book failed due to a network error:', str(e))
-                    # time.sleep(1)
-                    # break
                 except ccxt.ExchangeError as e:
                     print(exchange.id, 'fetch_order_book failed due to exchange error:', str(e))
-                    # break
                 except Exception as e:
                     print(exchange.id, 'fetch_order_book failed with:', str(e))
-                    # break
                 # finally:
-                await exchange.close()  # peki bu burda mi olmali??
+                # exchange.close()
 
     async def symbol_loop(self, symbol, exchange_instances):
         loops = [self.exchange_loop(exchange, symbol) for exchange in exchange_instances]
@@ -184,8 +184,9 @@ class ArbitrageOpportunityChecker():
                 current_time = time.strftime("%H:%M:%S", t)
                 print(current_time)
 
-                print("{} POTENTIAL PROFIT OF {}%. BUY ON {} AND SELL ON {}".format(current_time,
+                print("{} POTENTIAL PROFIT OF {}% FOR {} BUY ON {} AND SELL ON {}".format(current_time,
                                                                                     self.float_formatter(potential_profit),
+                                                                                    pair,
                                                                                     best_ask_price_exchange,
                                                                                     best_bid_price_exchange
                                                                                     ))
