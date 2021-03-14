@@ -1,4 +1,4 @@
-from arbitrage_opportunity_checker import ArbitrageOpportunityChecker, ExchangeInitializer, ExchangePairs
+from arbitrage_opportunity_checker import ArbitrageOpportunityChecker, ExchangeInitializer
 from exchange_pairs import ExchangePairs
 
 

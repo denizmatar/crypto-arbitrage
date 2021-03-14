@@ -8,10 +8,10 @@ from asyncio import gather, get_event_loop, sleep
 from pprint import pprint
 
 SLIPPAGE = 0.01
-MAKER_FEE = 0.002
-TAKER_FEE = 0.002
+MAKER_FEE = 0.0025
+TAKER_FEE = 0.0030
 
-CSV_PATH = "/Users/denizmatar/PycharmProjects/crypto-arbitrage/data.csv"
+CSV_PATH = "/Users/denizmatar/PycharmProjects/crypto-arbitrage/data2.csv"
 FIELD_NAMES = ['time', 'pair', 'profit', 'buy_exchange', 'sell_exchange', 'slippage', 'maker_fee', 'taker_fee']
 
 prices_dict = {}
@@ -29,43 +29,9 @@ class ExchangeInitializer:
         return exchanges
 
 
-class ExchangePairs:
-    all_exchanges_list = ['binance', 'huobipro', 'coinbasepro', 'kraken', 'kucoin', 'bitstamp', 'hitbtc', 'coinex',
-                 'bittrex', 'poloniex', 'okcoin', 'gateio', 'cex', 'exmo', 'bitmax']
-
-    all_exchanges_symbols_dictionary = {}
-    all_symbols_list = set()
-
-    def __init__(self):
-        self.all_exchanges_symbols_dictionary, self.all_symbols_list = self.run_main()
-
-    async def exchange_symbols_looper(self, exchange_id, asyncio_loop):
-        exchange_class = getattr(ccxt, exchange_id)
-        exchange = exchange_class({
-            'enableRateLimit': True,
-            'asyncio_loop': asyncio_loop,
-        })
-
-        await exchange.load_markets()
-        # exchange.verbose = True
-        await exchange.close()
-        self.all_exchanges_symbols_dictionary[exchange.id] = exchange.symbols
-        self.all_symbols_list.update(exchange.symbols)
-
-    async def main_func(self, asyncio_loop):
-        print("Loading all exchange symbols...")
-        loops = [self.exchange_symbols_looper(exchange_id, asyncio_loop) for exchange_id in self.all_exchanges_list]
-        await gather(*loops)
-
-    def run_main(self):
-        asyncio_loop = get_event_loop()
-        asyncio_loop.run_until_complete(self.main_func(asyncio_loop))
-        return self.all_exchanges_symbols_dictionary, self.all_symbols_list
-
 class ArbitrageOpportunityChecker():
     def __init__(self, all_symbols_list, all_exchanges_symbols_dictionary):
         self.operating_exchange_names = [exchange['name'] for exchange in self.fetch_database('exchanges', {}, {'name': 1})]
-        print(self.operating_exchange_names)
         self.coins = [coin['name'] for coin in self.fetch_database('coins', {}, {'name': 1})]
         self.all_possible_pairs = [f'{x}/{y}' for x in self.coins for y in self.coins if x != y]
         self.prices_dict = self.dict_constructor(prices_dict, all_symbols_list)
@@ -172,7 +138,7 @@ class ArbitrageOpportunityChecker():
         best_bid_price_amount = list(bid_prices_dict.values())[best_bid_price_index][1]
         best_bid_price_exchange = list(bid_prices_dict.keys())[best_bid_price_index]
 
-        print(f"{time.ctime(time.time())} best ask price for {pair} is {best_ask_price} and best bid price is {best_bid_price}")
+        # print(f"{time.ctime(time.time())} best ask price for {pair} is {best_ask_price} and best bid price is {best_bid_price}")
         # print(self.prices_dict)
 
         if best_ask_price < best_bid_price:
@@ -185,11 +151,12 @@ class ArbitrageOpportunityChecker():
                 print(current_time)
 
                 print("{} POTENTIAL PROFIT OF {}% FOR {} BUY ON {} AND SELL ON {}".format(current_time,
-                                                                                    self.float_formatter(potential_profit),
-                                                                                    pair,
-                                                                                    best_ask_price_exchange,
-                                                                                    best_bid_price_exchange
-                                                                                    ))
+                                                                                          self.float_formatter(
+                                                                                              potential_profit),
+                                                                                          pair,
+                                                                                          best_ask_price_exchange,
+                                                                                          best_bid_price_exchange
+                                                                                          ))
                 # detected = True
                 data_dict = {"time": str(current_time),
                              "pair": pair,
@@ -203,11 +170,12 @@ class ArbitrageOpportunityChecker():
 
                 self.csv_writer(FIELD_NAMES, headers=False, data=data_dict)
             else:
-                print("NO POTENTIAL PROFIT")
+                pass
+                # print("NO POTENTIAL PROFIT")
         else:
-            print("NO POTENTIAL PROFIT")
+            pass
+            # print("NO POTENTIAL PROFIT")
 
     def run(self, exchange_instances):
         print(time.ctime(time.time()))
         self.asyncio_loop.run_until_complete(self.main(exchange_instances))
-
